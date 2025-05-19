@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Copy, ArrowDown, ArrowUp } from 'lucide-react';
 import { LogMessage } from '@/types/log';
@@ -10,6 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface LogEntryProps {
   log: LogMessage;
@@ -44,6 +46,9 @@ export function LogEntry({ log, searchTerm, className }: LogEntryProps) {
       // Not valid JSON, keep original message
     }
   }
+  
+  // Check if message is long
+  const isLongMessage = log.message.length > 200;
   
   const highlightSearchTerm = (text: string) => {
     if (!searchTerm || searchTerm.length < 2) return text;
@@ -113,6 +118,27 @@ export function LogEntry({ log, searchTerm, className }: LogEntryProps) {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+      ) : isLongMessage ? (
+        <Collapsible>
+          <div className="flex items-center justify-between">
+            <div 
+              className="text-sm log-content leading-relaxed truncate"
+              dangerouslySetInnerHTML={{ __html: highlightSearchTerm(formattedMessage.substring(0, 200) + '...') }}
+            />
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="ml-2 h-6 w-6 p-0">
+                <ArrowDown size={14} />
+                <span className="sr-only">Show more</span>
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="mt-1 animate-accordion-down">
+            <div 
+              className="text-sm log-content leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: highlightSearchTerm(formattedMessage) }}
+            />
+          </CollapsibleContent>
+        </Collapsible>
       ) : (
         <div 
           className="text-sm log-content leading-relaxed"

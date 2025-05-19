@@ -7,7 +7,7 @@ import { LogLevelFilter } from '@/components/LogLevelFilter';
 import { StatusIndicator } from '@/components/StatusIndicator';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Filter, Search, X, Pause, Play, PlusCircle } from 'lucide-react';
+import { Filter, Search, X, Pause, Play, PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -47,7 +47,8 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
   const activeSession = sessions.find(session => session.id === activeSessionId) || sessions[0];
   
   const { logs, status, clearLogs, togglePause } = useWebSocket({
-    url: activeSession.websocketUrl
+    url: activeSession.websocketUrl,
+    autoShowToasts: false // Disable automatic toast notifications
   });
   
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +123,23 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
     setActiveSessionId(id);
   };
   
+  // Remove session
+  const handleRemoveSession = (sessionId: string) => {
+    // Don't remove if it's the only session
+    if (sessions.length <= 1) {
+      return;
+    }
+    
+    const newSessions = sessions.filter(session => session.id !== sessionId);
+    
+    // If we're removing the active session, set active to the first available
+    if (sessionId === activeSessionId) {
+      setActiveSessionId(newSessions[0].id);
+    }
+    
+    setSessions(newSessions);
+  };
+  
   // Clear active session logs
   const handleClearLogs = () => {
     clearLogs();
@@ -173,13 +191,27 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
         <Tabs value={activeSessionId} onValueChange={setActiveSessionId} className="w-full">
           <TabsList className="w-full justify-start overflow-x-auto scrollbar-thin mb-1">
             {sessions.map(session => (
-              <TabsTrigger 
-                key={session.id}
-                value={session.id}
-                className="min-w-[100px] whitespace-nowrap"
-              >
-                {session.name}
-              </TabsTrigger>
+              <div key={session.id} className="flex items-center">
+                <TabsTrigger 
+                  value={session.id}
+                  className="min-w-[100px] whitespace-nowrap group"
+                >
+                  {session.name}
+                  {sessions.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity -mr-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSession(session.id);
+                      }}
+                    >
+                      <Trash2 size={12} className="text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  )}
+                </TabsTrigger>
+              </div>
             ))}
           </TabsList>
         </Tabs>
