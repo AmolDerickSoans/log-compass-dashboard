@@ -1,16 +1,18 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
-import { LogLevel, LogLevelFilter } from '@/types/log';
+import { type LogLevel, type LogLevelFilter as LogLevelFilterType } from '@/types/log';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 interface LogLevelFilterProps {
-  filters: LogLevelFilter;
-  onChange: (filters: LogLevelFilter) => void;
+  filters: LogLevelFilterType;
+  onChange: (filters: LogLevelFilterType) => void;
   counts?: Partial<Record<LogLevel, number>>;
 }
 
 export function LogLevelFilter({ filters, onChange, counts }: LogLevelFilterProps) {
   const levels: LogLevel[] = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
+  const [indeterminate, setIndeterminate] = useState(false);
   
   const handleToggleFilter = (level: LogLevel) => {
     onChange({ ...filters, [level]: !filters[level] });
@@ -25,7 +27,12 @@ export function LogLevelFilter({ filters, onChange, counts }: LogLevelFilterProp
   };
   
   const allChecked = levels.every(level => filters[level]);
-  const someChecked = levels.some(level => filters[level]);
+  const someChecked = levels.some(level => filters[level]) && !allChecked;
+  
+  // Update indeterminate state when filter changes
+  if (indeterminate !== someChecked) {
+    setIndeterminate(someChecked);
+  }
   
   const levelColors = {
     'DEBUG': 'text-log-debug',
@@ -40,7 +47,8 @@ export function LogLevelFilter({ filters, onChange, counts }: LogLevelFilterProp
         <Checkbox 
           id="all-levels" 
           checked={allChecked}
-          indeterminate={!allChecked && someChecked}
+          // We handle indeterminate state with a data attribute and CSS instead
+          className={cn(someChecked && "data-[state=indeterminate]:bg-primary/50")}
           onCheckedChange={(checked) => handleToggleAll(checked as boolean)}
         />
         <label
