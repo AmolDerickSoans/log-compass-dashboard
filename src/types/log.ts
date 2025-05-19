@@ -11,3 +11,10 @@ export interface LogMessage {
 }
 
 export type LogLevelFilter = Record<LogLevel, boolean>;
+
+export interface LogSession {
+  id: string;
+  name: string;
+  websocketUrl: string;
+  logs: LogMessage[];
+}

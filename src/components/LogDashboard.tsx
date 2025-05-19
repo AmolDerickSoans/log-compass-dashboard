@@ -1,20 +1,22 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { LogLevelFilter, LogMessage, LogLevel } from '@/types/log';
+import { LogLevelFilter as FilterType, LogMessage, LogLevel, LogSession } from '@/types/log';
 import { LogEntry } from '@/components/LogEntry';
-import { LogLevelFilter as LogFilter } from '@/components/LogLevelFilter';
+import { LogLevelFilter } from '@/components/LogLevelFilter';
 import { StatusIndicator } from '@/components/StatusIndicator';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Filter, Search, X, Pause, Play } from 'lucide-react';
+import { Filter, Search, X, Pause, Play, PlusCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from '@/lib/utils';
+import { nanoid } from 'nanoid';
 
 interface LogDashboardProps {
   websocketUrl?: string;
@@ -23,12 +25,16 @@ interface LogDashboardProps {
 export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs' }: LogDashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [levelFilters, setLevelFilters] = useState<LogLevelFilter>({
+  const [levelFilters, setLevelFilters] = useState<FilterType>({
     INFO: true,
     DEBUG: true,
     WARNING: true,
     ERROR: true
   });
+  const [sessions, setSessions] = useState<LogSession[]>([
+    { id: 'default', name: 'Default', websocketUrl, logs: [] }
+  ]);
+  const [activeSessionId, setActiveSessionId] = useState('default');
   const [filteredLogs, setFilteredLogs] = useState<LogMessage[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [levelCounts, setLevelCounts] = useState<Record<LogLevel, number>>({
@@ -38,11 +44,26 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
     ERROR: 0
   });
   
+  const activeSession = sessions.find(session => session.id === activeSessionId) || sessions[0];
+  
   const { logs, status, clearLogs, togglePause } = useWebSocket({
-    url: websocketUrl
+    url: activeSession.websocketUrl
   });
   
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Update session logs when the websocket logs change
+  useEffect(() => {
+    if (logs.length > 0) {
+      setSessions(prev => 
+        prev.map(session => 
+          session.id === activeSessionId 
+            ? { ...session, logs } 
+            : session
+        )
+      );
+    }
+  }, [logs, activeSessionId]);
   
   // Effect for focusing search input when shown
   useEffect(() => {
@@ -53,6 +74,8 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
   
   // Handle search and filtering
   useEffect(() => {
+    const logs = activeSession.logs;
+    
     const filtered = logs.filter((log) => {
       const matchesLevel = levelFilters[log.level];
       const matchesSearch = !searchTerm || 
@@ -78,11 +101,37 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
     });
     
     setLevelCounts(counts);
-  }, [logs, levelFilters, searchTerm]);
+  }, [activeSession.logs, levelFilters, searchTerm, activeSession]);
   
   // Toggle pause
   const handlePauseToggle = () => {
     setIsPaused(togglePause());
+  };
+  
+  // Create new session
+  const handleNewSession = () => {
+    const id = nanoid();
+    const newSession = {
+      id,
+      name: `Session ${sessions.length + 1}`,
+      websocketUrl,
+      logs: []
+    };
+    
+    setSessions([...sessions, newSession]);
+    setActiveSessionId(id);
+  };
+  
+  // Clear active session logs
+  const handleClearLogs = () => {
+    clearLogs();
+    setSessions(prev => 
+      prev.map(session => 
+        session.id === activeSessionId 
+          ? { ...session, logs: [] } 
+          : session
+      )
+    );
   };
   
   // Load filters from localStorage
@@ -105,13 +154,43 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
   return (
     <div className="flex flex-col h-full bg-background dark border rounded-lg shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="py-3 px-4 border-b flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+      <div className="py-3 px-4 border-b">
+        <div className="flex items-center justify-between mb-3">
           <h1 className="font-semibold text-lg">Log Dashboard</h1>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="h-8 px-2"
+              onClick={handleNewSession}
+            >
+              <PlusCircle size={16} className="mr-1" />
+              New Session
+            </Button>
+          </div>
+        </div>
+        
+        <Tabs value={activeSessionId} onValueChange={setActiveSessionId} className="w-full">
+          <TabsList className="w-full justify-start overflow-x-auto scrollbar-thin mb-1">
+            {sessions.map(session => (
+              <TabsTrigger 
+                key={session.id}
+                value={session.id}
+                className="min-w-[100px] whitespace-nowrap"
+              >
+                {session.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+      
+      <div className="py-2 px-4 border-b flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
           <StatusIndicator status={status} />
-          {logs.length > 0 && (
+          {activeSession.logs.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              {filteredLogs.length} / {logs.length} logs
+              {filteredLogs.length} / {activeSession.logs.length} logs
             </span>
           )}
         </div>
@@ -156,7 +235,7 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
             </SheetTrigger>
             <SheetContent>
               <h3 className="text-lg font-medium mb-4">Filter Logs</h3>
-              <LogFilter 
+              <LogLevelFilter 
                 filters={levelFilters} 
                 onChange={setLevelFilters}
                 counts={levelCounts}
@@ -173,7 +252,7 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
             variant="outline" 
             size="sm"
             className="h-8" 
-            onClick={clearLogs}
+            onClick={handleClearLogs}
           >
             Clear
           </Button>
@@ -185,7 +264,7 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <p className="text-muted-foreground mb-2">No logs to display</p>
           <p className="text-xs text-muted-foreground">
-            {logs.length > 0 
+            {activeSession.logs.length > 0 
               ? 'Try adjusting your filters' 
               : status === 'connected' 
                 ? 'Waiting for logs...' 
@@ -200,6 +279,7 @@ export function LogDashboard({ websocketUrl = 'ws://localhost:8000/logs/ws/logs'
               key={`${log.time}-${index}`} 
               log={log}
               searchTerm={searchTerm}
+              className={index % 2 === 0 ? "bg-background" : "bg-secondary/30"}
             />
           ))}
         </div>
