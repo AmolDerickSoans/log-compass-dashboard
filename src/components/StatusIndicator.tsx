@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 interface StatusIndicatorProps {
   status: 'connecting' | 'connected' | 'disconnected';
   className?: string;
+  errorMessage?: string;
 }
 
-export function StatusIndicator({ status, className }: StatusIndicatorProps) {
+export function StatusIndicator({ status, errorMessage, className }: StatusIndicatorProps) {
   const [prevStatus, setPrevStatus] = useState(status);
   const [isTransitioning, setIsTransitioning] = useState(false);
   
@@ -60,7 +61,10 @@ export function StatusIndicator({ status, className }: StatusIndicatorProps) {
               <span className="absolute inset-0 bg-log-error/20 rounded-full animate-ping opacity-75" />
             )}
           </div>
-          <span className="text-sm font-medium text-log-error">Disconnected</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-log-error">Disconnected</span>
+            {errorMessage && <span className="text-xs text-log-error/80">{errorMessage}</span>}
+          </div>
         </>
       )}
     </div>

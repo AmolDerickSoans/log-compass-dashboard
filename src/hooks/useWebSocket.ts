@@ -19,11 +19,12 @@ export function useWebSocket({
   autoReconnect = true,
   reconnectInterval = 5000,
   maxReconnectAttempts = 10,
-  autoShowToasts = true,
+  autoShowToasts = false, // Changed default to false
   pollingInterval = 200
 }: UseWebSocketOptions) {
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -69,12 +70,23 @@ export function useWebSocket({
       }
       
       setStatus('connecting');
+      setErrorMessage(undefined);
       
+      // Validate URL format before attempting connection
+      if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+        setStatus('disconnected');
+        setErrorMessage('Invalid WebSocket URL format. URL must start with ws:// or wss://');
+        console.error('Invalid WebSocket URL format:', url);
+        return;
+      }
+      
+      console.log('Attempting to connect to WebSocket:', url);
       const socket = new WebSocket(url);
       
       socket.onopen = () => {
         console.log('WebSocket connection established');
         setStatus('connected');
+        setErrorMessage(undefined);
         reconnectAttemptsRef.current = 0;
         
         // Display a toast notification when successfully connected
@@ -121,9 +133,16 @@ export function useWebSocket({
         }
       };
       
-      socket.onclose = () => {
-        console.log('WebSocket connection closed');
+      socket.onclose = (event) => {
+        console.log('WebSocket connection closed', event);
         setStatus('disconnected');
+        
+        // Set more descriptive error message based on close code
+        if (event.code === 1006) {
+          setErrorMessage('Connection closed abnormally');
+        } else if (event.code !== 1000) {
+          setErrorMessage(`Connection closed (code: ${event.code})`);
+        }
         
         if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           if (autoShowToasts) {
@@ -139,6 +158,7 @@ export function useWebSocket({
             connect();
           }, reconnectInterval);
         } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          setErrorMessage(`Max reconnection attempts reached (${maxReconnectAttempts})`);
           if (autoShowToasts) {
             toast({
               title: "Connection Failed",
@@ -151,12 +171,14 @@ export function useWebSocket({
       
       socket.onerror = (error) => {
         console.error('WebSocket error:', error);
+        setErrorMessage('Connection error. Server may be unavailable.');
       };
       
       socketRef.current = socket;
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
       setStatus('disconnected');
+      setErrorMessage('Failed to establish connection');
       
       if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
         reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -191,6 +213,7 @@ export function useWebSocket({
   return {
     logs,
     status,
+    errorMessage,
     clearLogs,
     togglePause,
     isPaused: isPaused.current
